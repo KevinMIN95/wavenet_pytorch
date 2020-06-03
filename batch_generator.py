@@ -45,7 +45,9 @@ def batch_generator(data_dir, receptive_field,
                     batch_size=1,
                     shuffle=True,
                     upsampling_factor=512,
-                    use_speaker_code=False):
+                    use_speaker_code=False,
+                    use_gpu=False,
+                    ):
     """GENERATE TRAINING BATCH.
 
     Args:
@@ -56,6 +58,7 @@ def batch_generator(data_dir, receptive_field,
         shuffle (bool): Whether to shuffle the file list.
         upsampling_factor (int): Upsampling factor.
         use_speaker_code (bool): Whether to use speaker code.
+        use_gpu (bool): Whether to use gpu
 
     Returns:
         generator: Generator instance.
@@ -152,7 +155,10 @@ def batch_generator(data_dir, receptive_field,
                         batch_h = torch.stack(batch_h)
                         batch_t = torch.stack(batch_t)
 
-                        # TODO: gpu : send batches to cuda
+                        if use_gpu:
+                            batch_x = batch_x.cuda()
+                            batch_h = batch_h.cuda()
+                            batch_t = batch_t.cuda()
 
                         yield (batch_x, batch_h), batch_t, wavfile
 
@@ -175,7 +181,11 @@ def batch_generator(data_dir, receptive_field,
                 batch_x = x[:-1].unsqueeze(0)  # (1 x T)
                 batch_t = x[1:].unsqueeze(0)  # (1 x T)
 
-                # TODO: gpu : send batches to cuda
+                if use_gpu:
+                    batch_x = batch_x.cuda()
+                    batch_h = batch_h.cuda()
+                    batch_t = batch_t.cuda()
+
                 yield (batch_x, batch_h), batch_t, wavfile
 
         # re-shuffle

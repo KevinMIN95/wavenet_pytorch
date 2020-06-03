@@ -154,7 +154,9 @@ def main():
         batch_size=args.batch_size,
         shuffle=True,
         upsampling_factor=args.upsampling_factor,
-        use_speaker_code=args.use_speaker_code)
+        use_speaker_code=args.use_speaker_code,
+        use_gpu=args.use_gpu
+    )
 
     # charge minibatch in queue
     while not generator.queue.full():
