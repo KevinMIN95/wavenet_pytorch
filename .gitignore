@@ -1,3 +1,6 @@
 mel_fig/
 exp/
 data/
+training_sample/
+test.sh
+test.py

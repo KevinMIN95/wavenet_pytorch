@@ -41,9 +41,9 @@ lr=1e-4
 weight_decay=0.0
 batch_length=20000
 batch_size=1
-iters=1000
+iters=10
 checkpoint_interval=500
-log_interval=100
+log_interval=9
 seed=1
 resume=""
 
