@@ -17,6 +17,7 @@ from torch import nn
 from wavenet import WaveNet, initialize
 from scipy.io import wavfile
 from audio_utils import *
+from tensorboard_writer import TensorboardWriter
 
 logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
 
@@ -38,6 +39,22 @@ def save_checkpoint(checkpoint_dir, model, optimizer, iterations):
         os.makedirs(checkpoint_dir)
     torch.save(checkpoint, checkpoint_dir + "/checkpoint-%d.pkl" % iterations)
     logging.info("%d-iter checkpoint created." % iterations)
+
+def _get_waveform(output, mode="sampling"):
+    """Get Waveforom from Samples
+
+    Arguments:
+        output {Tensor} -- output tensor(BxTXC)
+        mode {str} -- "sampling" or "argmax"
+    """
+    if mode=="sampling":
+        posterior = torch.softmax(output, dim=2)
+        dist = torch.distributions.Categorical(posterior)
+        wave = dist.sample()
+    elif mode=="argmax":
+        wave = output.argmax(dim=2)
+
+    return wave # B X T
 
 
 def main():
@@ -85,6 +102,8 @@ def main():
     parser.add_argument("--iters", default=200000,
                         type=int, help="number of iterations")
     # other setting
+    parser.add_argument("--sr", default=16000, 
+                        type=int, help="sampling rate")
     parser.add_argument("--checkpoint_interval", default=10000,
                         type=int, help="how frequent saving model")
     parser.add_argument("--log_interval", default=100,
@@ -93,11 +112,17 @@ def main():
                         type=int, help="seed number")
     parser.add_argument("--resume", default=None, nargs="?",
                         type=str, help="model path to restart training")
+    parser.add_argument("--mode", default="sampling",
+                        type=str, help="decode mode(sampling or argmax)")
+                        
     args = parser.parse_args()
 
     # make experimental directory
     if not os.path.exists(args.expdir):
         os.makedirs(args.expdir)
+
+    # make tensorboard writer
+    tensorboard = TensorboardWriter(log_dir=os.path.join(args.expdir, 'tensorboard'))
 
     # # show arguments
     # for key, value in vars(args).items():
@@ -191,6 +216,7 @@ def main():
     total = 0
     initial_time = time.time()
     logging.info('***** Training Begins at {} *****'.format(time.strftime("%Y-%m-%d %H:%M:%S")))
+    logging.info('***** Total Interations = {} *****'.format(args.iters - iterations))
     for i in range(iterations, args.iters):
         start = time.time()
         (batch_x, batch_h), batch_t, _ = generator.next()
@@ -215,19 +241,21 @@ def main():
                          "{0.days:02}:{0.hours:02}:{0.minutes:02}:{0.seconds:02}"
                          .format(relativedelta(
                              seconds=int((args.iters - (i + 1)) * (total / args.log_interval)))))
+            
+            # write tensorboard
+            tensorboard.write_loss(i+1, 'Loss', 'train', {'loss': loss / args.log_interval})
+            train_output = batch_output[:,model.receptive_field:] # B x T x C
+            train_label = batch_t[:,model.receptive_field:] # B X T 
+
+            train_output = _get_waveform(train_output, mode=args.mode)
+            for b in range(train_output.shape[0]):
+                y_train = inv_mulaw_quantize(train_output[b])
+                y_label = inv_mulaw_quantize(train_label[b])
+                tensorboard.write_audio(i+1, f'iter{i+1}', f'train_{b}', y_train.cpu(), args.sr)
+                tensorboard.write_audio(i+1, f'iter{i+1}', f'label_{b}', y_label.cpu(), args.sr)
+            
             loss = 0
             total = 0
-
-            if not os.path.exists('training_sample'):
-                os.makedirs('training_sample')
-            soft = torch.softmax(batch_output, dim=2)
-            soft = soft.argmax(dim=2)
-            y_train = inv_mulaw_quantize(soft[0])
-            y_label = inv_mulaw_quantize(batch_t[0])
-            wavfile.write(f'training_sample/y_train_{i}.wav', 16000, y_train.numpy())
-            wavfile.write(f'training_sample/y_label_{i}.wav', 16000, y_label.numpy())
-
-            
 
         # save intermidiate model
         if (i + 1) % args.checkpoint_interval == 0:
@@ -235,6 +263,9 @@ def main():
                 save_checkpoint(args.expdir, model.module, optimizer, i + 1)
             else:
                 save_checkpoint(args.expdir, model, optimizer, i + 1)
+
+    # close tensorboard
+    tensorboard.close()
 
     # save final model
     if args.n_gpus > 1:

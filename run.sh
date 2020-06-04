@@ -43,9 +43,14 @@ batch_length=20000
 batch_size=1
 iters=10
 checkpoint_interval=500
-log_interval=9
+log_interval=1
 seed=1
 resume=""
+
+#######################################
+#          DECODING SETTING           #
+#######################################
+mode="sampling"
 
 
 # experiment tag
@@ -161,10 +166,12 @@ if echo ${stage} | grep -q 2; then
         --batch_length $batch_length \
         --batch_size $batch_size \
         --iters $iters \
+        --sr $sampling_frequency \
         --checkpoint_interval $checkpoint_interval \
         --log_interval $log_interval \
         --seed $seed \
-        --resume $resume 
+        --resume $resume \
+        --mode $mode
 fi
 
 

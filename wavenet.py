@@ -223,7 +223,7 @@ class WaveNet(nn.Module):
         if self.upsampling_factor > 0:
             h = self.upsampling(h)
 
-        # padding if the length less than receptive field size
+        #padding if the length less than receptive field size
         n_pad = self.receptive_field - x.size(1)
         if n_pad > 0:
             x = F.pad(x, (n_pad, 0), "constant", self.n_quantize // 2)
@@ -251,6 +251,7 @@ class WaveNet(nn.Module):
 
             # get waveform
             if mode == "sampling":
+                # get last sample
                 posterior = F.softmax(output[-1], dim=0)
                 dist = torch.distributions.Categorical(posterior)
                 sample = dist.sample()
@@ -310,3 +311,5 @@ class WaveNet(nn.Module):
         output = res_1x1(output)
         output = output + x[:, :, -1:]  # B x C x 1
         return output, skip
+        
+
