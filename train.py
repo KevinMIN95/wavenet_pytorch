@@ -15,7 +15,6 @@ import torch
 from batch_generator import batch_generator
 from torch import nn
 from wavenet import WaveNet, initialize
-from scipy.io import wavfile
 from audio_utils import *
 from tensorboard_writer import TensorboardWriter
 

@@ -1,11 +1,14 @@
 import argparse
+import os
 import sys
 import time
 import numpy as np
 import logging
 
+
 from background_generator import background
 import torch
+import torch.nn.functional as F
 
 def validate_length(x, y, upsampling_factor=None):
     """VALIDATE LENGTH.
@@ -194,6 +197,111 @@ def batch_generator(data_dir, receptive_field,
             wav_list = [data_list[i].strip().split('|')[0] for i in idx]
             feat_list = [data_list[i].strip().split('|')[1] for i in idx]
 
+
+
+@background(max_prefetch=16)
+def decode_generator(data_dir,
+                    batch_size=1,
+                    n_quantize=256,
+                    upsampling_factor=512,
+                    use_speaker_code=False,
+                    use_gpu=False,
+                    ):
+    """GENERATE TRAINING BATCH.
+
+    Args:
+        data_dir: Directory or list of filename of input data
+        batch_size (int): Batch size (if batch_length = None, batch_size will be 1.).
+        n_quantize: Number of quantization.
+        upsampling_factor (int): Upsampling factor.
+        use_speaker_code (bool): Whether to use speaker code.
+        use_gpu (bool): Whether to use gpu
+
+    Returns:
+        generator: Generator instance.
+    """
+
+    with open(data_dir, 'r') as f:
+        data_list = f.readlines()
+        f.close()
+
+    logging.info("Number of test data : %d" %(len(data_list)))
+    
+    feat_list = [data.strip().split('|')[1] for data in data_list]
+
+    if batch_size == 1:
+        for featfile in feat_list:
+            x = np.zeros((n_quantize//2))
+            h = np.load(featfile) # T x C
+
+            # convert to torch variable
+            x = torch.from_numpy(x).long()
+            h = torch.from_numpy(h).float()
+
+            x = x.unsqueeze(0)  # 1 => 1 x 1
+            h = h.transpose(0, 1).unsqueeze(0)  # T x C => 1 x C x T
+
+            if use_gpu:
+                # send to cuda
+                x = x.cuda()
+                h = h.cuda()
+            
+            n_samples = h.size(2) * upsampling_factor - 1
+            feat_name = os.path.basename(featfile).replace("-feats.npy", "")
+
+            yield feat_name, (x, h, n_samples)
+    else:
+        feats = [ np.load(featfile) for featfile in feat_list ]
+        feats = sorted(feats, key=lambda feat : len(feat))
+
+        # divide into batch list
+        n_batch = math.ceil(len(feats) / batch_size)
+        batch_lists = np.array_split(feat_list, n_batch)
+        batch_lists = [f.tolist() for f in batch_lists]
+
+        for batch_list in batch_lists:
+            batch_x = []
+            batch_h_ = []
+            n_samples_list = []
+            feat_names = []
+
+            maxlen = maxlen = max([batch.shape[0] for batch in batch_list])
+
+            for featfile in batch_list:
+                # make seed waveform and load aux feature
+                x = np.zeros((1))
+                h = np.array(featfile) # TxC
+
+                # convert to torch variable
+                # x = torch.from_numpy(x).long()
+                # h = torch.from_numpy(h).float()
+
+                # append to list
+                batch_x += [x] 
+                batch_h_ += [h] # TxC
+                n_samples_list += [len(h) * upsampling_factor - 1]
+                feat_names += [os.path.basename(featfile).replace("-feats.npy", "")]
+
+            batch_x = np.stack(batch_x, axis=0) # B x 1
+
+            batch_size = len(batch_list)
+            n_feats = batch_h_[0].shape[-1]
+            size = (batch_size, maxlen, n_feats)
+            batch_h = np.full(size, n_quantize//2)
+            for b in range(batch_size):
+                t = batch_h_[b].shape[0]
+                batch_h[b,:t] = batch_h_[b]
+            
+            # convert to torch variable
+            batch_x = torch.from_numpy(batch_x).long() # B x 1
+            batch_h = torch.from_numpy(batch_h).float().transpose(1, 2) # B x T_max
+
+            if use_gpu:
+                # send to cuda
+                x = x.cuda()
+                h = h.cuda()
+
+            yield feat_names, (batch_x, batch_h, n_samples_list)
 
 
 if __name__ == "__main__":

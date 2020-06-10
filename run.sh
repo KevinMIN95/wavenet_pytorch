@@ -50,6 +50,10 @@ resume=""
 #######################################
 #          DECODING SETTING           #
 #######################################
+checkpoint=""
+config=""
+outdir=""
+decode_batch_size=1
 mode="sampling"
 
 
@@ -174,7 +178,28 @@ if echo ${stage} | grep -q 2; then
         --mode $mode
 fi
 
+# stage 3
+# set variables
+if [ ! -n "${outdir}" ];then
+    outdir=exp/${timestamp}_tr/test_output
+fi
 
+if echo ${stage} | grep -q 3; then
+    echo "###########################################################"
+    echo "#               WAVENET DECODING STEP                     #"
+    echo "###########################################################"
+
+    python decode.py \
+        --featdir ${db_root}/${test_set}/wav-pre.scp \
+        --checkpoint $checkpoint \
+        --config $config \
+        --outdir $outdir \
+        --sr $sampling_frequency \
+        --batch_size $decode_batch_size \
+        --mode $mode \
+        --use_gpu $use_gpu \
+    
+fi
 
     
 
