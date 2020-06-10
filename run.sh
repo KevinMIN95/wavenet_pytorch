@@ -27,13 +27,13 @@ num_workers=0               # number of parallel jobs (if 0, will automatically 
 #          TRAINING SETTING           #
 #######################################
 use_gpu=false
-n_gpu=0
+number_gpus=0
 n_quantize=256
 n_aux=80
 n_resch=512
 n_skipch=256
 dilation_depth=10
-dilation_repeat=1
+dilation_repeat=3
 kernel_size=2
 upsampling_factor=512
 use_speaker_code=false
@@ -41,9 +41,9 @@ lr=1e-4
 weight_decay=0.0
 batch_length=20000
 batch_size=1
-iters=10
+iters=30000
 checkpoint_interval=500
-log_interval=1
+log_interval=200
 seed=1
 resume=""
 
@@ -78,9 +78,9 @@ fi
 
 # Set bash to 'debug' mode, it will exit on :
 # -e 'error', -u 'undefined variable', -o ... 'error in pipeline', -x 'print commands',
-set -e
-set -u
-set -o pipefail
+# set -e
+# set -u
+# set -o pipefail
 
 
 # stage 0
@@ -155,7 +155,7 @@ if echo ${stage} | grep -q 2; then
         --datadir ${db_root}/${train_set}/wav-pre.scp \
         --expdir $expdir \
         --use_gpu $use_gpu \
-        --n_gpu $n_gpu \
+        --number_gpus $number_gpus \
         --n_quantize $n_quantize \
         --n_aux $n_aux \
         --n_resch $n_resch \

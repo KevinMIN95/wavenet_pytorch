@@ -88,8 +88,8 @@ def main():
     # network training setting
     parser.add_argument("--use_gpu", default=False,
                         type=strtobool, help="using gpu")
-    parser.add_argument("--n_gpus", default=1,
-                        type=int, help="number of gpus")
+    parser.add_argument("--number_gpus", nargs='*',
+                        type=list, help="gpus to use")
     parser.add_argument("--lr", default=1e-4,
                         type=float, help="learning rate")
     parser.add_argument("--weight_decay", default=0.0,
@@ -156,8 +156,8 @@ def main():
     model.apply(initialize)
     model.train()
 
-    if args.n_gpus > 1:
-        device_ids = range(args.n_gpus)
+    if len(args.number_gpus) > 1:
+        device_ids = args.number_gpus
         model = torch.nn.DataParallel(model, device_ids)
         model.receptive_field = model.module.receptive_field
         if args.n_gpus > args.batch_size:
@@ -215,7 +215,7 @@ def main():
     total = 0
     initial_time = time.time()
     logging.info('***** Training Begins at {} *****'.format(time.strftime("%Y-%m-%d %H:%M:%S")))
-    logging.info('***** Total Interations = {} *****'.format(args.iters - iterations))
+    logging.info('***** Total Interations = {} / Started From = {}*****'.format(args.iters,iterations))
     for i in range(iterations, args.iters):
         start = time.time()
         (batch_x, batch_h), batch_t, _ = generator.next()
